@@ -521,7 +521,7 @@ function makePatient(i){
 }
 const PATIENTS=Array.from({length:42},(_,i)=>makePatient(i));
 // make a couple of guaranteed today/overdue tasks for demo realism
-PATIENTS[3].nextAnc=TODAY;PATIENTS[3].nextAncLate=false;
+PATIENTS[3].nextAnc=TODAY;PATIENTS[3].nextAncLate=false;PATIENTS[3].flags=PATIENTS[3].flags.filter(x=>!x[1].startsWith('ไม่มาตามนัด'));
 PATIENTS[17].delivery.date=addD(TODAY,-7);PATIENTS[17].follow.forEach((f,i)=>{f.due=addD(PATIENTS[17].delivery.date,FOLLOW[i][1]);f.status='pending';f.actual=null;f.bf=null;f.contra=null});PATIENTS[17].flags=PATIENTS[17].flags.filter(x=>x[1]!=='มีรอบติดตามเลยกำหนด');
 
 const REFERRALS=[];
@@ -657,7 +657,7 @@ function shell(content,page){
   </div></div>`}
 
 const head=(title,sub,actions='',crumb='')=>`<div class="page-head"><div>${crumb?`<div class="crumb">${crumb}</div>`:''}<h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${actions?`<div class="filters">${actions}</div>`:''}</div>`;
-const noAccess=what=>`<div class="locked">${ic('lock')}<div><b>บทบาท ${R().label} ไม่มีสิทธิ์${what}</b><div class="note">ระบบจำกัดสิทธิ์ตามบทบาท (RBAC) และบันทึกทุกการเข้าถึงลง audit log</div></div></div>`;
+const noAccess=what=>`<div class="locked">${ic('lock')}<div><b>บทบาท ${R().label} ไม่มีสิทธิ์${what}</b><div class="note">ระบบจำกัดสิทธิ์ตามบทบาท (RBAC) และบันทึกทุกการเข้าถึงลง audit log</div><a class="btn sm" style="margin-top:10px" href="#/home">กลับหน้าภาพรวม</a></div></div>`;
 const statusBadge=s=>s==='pass'?'<span class="badge pass">ผ่าน</span>':s==='fail'?'<span class="badge fail">ไม่ผ่าน</span>':'<span class="badge none">ไม่มีข้อมูล</span>';
 const stageLabel=p=>p.status==='completed'?'<span class="badge none">สิ้นสุดการดูแล</span>':p.stage==='anc'?`<span class="badge info">ตั้งครรภ์ · GA ${p.ga} wk</span>`:p.stage==='post'?`<span class="badge brand">หลังคลอด ${diffD(TODAY,p.delivery.date)} วัน</span>`:'<span class="badge plain tag" style="border:0">ติดตามระยะยาว</span>';
 const whenCls=d=>{const n=diffD(d,TODAY);return n<0?'over':n===0?'today':'soon'};
@@ -679,7 +679,7 @@ function pageHome(){
         <div class="panel-body"><div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:40px;font-weight:600;letter-spacing:-.03em" class="num">${sum.pass}</span><span class="muted">จาก 28 ตัวผ่านเป้าหมาย</span></div>
         <div class="bar" style="margin-top:12px;height:10px"><i style="width:${sum.pass/28*100}%;background:var(--pass)"></i><i style="width:${sum.fail/28*100}%;background:var(--fail)"></i></div>
         <div class="legend"><span><i style="background:var(--pass)"></i>ผ่าน ${sum.pass}</span><span><i style="background:var(--fail)"></i>ไม่ผ่าน ${sum.fail}</span><span><i style="background:var(--none-soft)"></i>ไม่มีข้อมูล ${sum.none}</span></div>
-        <div style="margin-top:18px">${barChart(FYM.map((_,m)=>kpiSummary(2569,'m'+m).pass),{labels:FYM,max:28,h:180,note:'จำนวน KPI ที่ผ่านรายเดือน'})}</div><div class="note">จำนวน KPI ที่ผ่านเป้าหมายในแต่ละเดือน</div></div></section>
+        <div style="margin-top:18px">${barChart(FYM.map((_,m)=>kpiSummary(2569,'m'+m).pass),{labels:FYM,max:28,h:180,note:'จำนวน KPI ที่ผ่านรายเดือน'})}</div><div class="note">จำนวน KPI ที่ผ่านเป้าหมายในแต่ละเดือน</div>${DOMAINS.map((d,i)=>{const ks=sum.all.filter(x=>x.k.d===i),ps=ks.filter(x=>x.a.status==='pass').length;return `<div style="display:flex;align-items:center;gap:12px;margin-top:14px"><span style="flex:1;min-width:0">${d.th}</span><span class="num" style="width:52px;text-align:right;font-weight:600">${ps}/${ks.length}</span><div class="bar" style="width:40%"><i style="width:${ps/ks.length*100}%;background:var(--pass)"></i></div></div>`}).join('')}</div></section>
       <section class="panel"><div class="panel-head"><h2>KPI ที่ไม่ผ่าน</h2><span class="sub">${fails.length} ตัว</span></div>
         ${fails.map(({k,a})=>`<div class="task" style="cursor:pointer" data-action="openKpi" data-id="${k.id}"><span class="when" style="width:52px;color:var(--ink-3)">KPI ${k.id}</span><div class="what"><b>${k.title}</b><small>${DOMAINS[k.d].th}</small></div><span class="kpi-val num" style="color:var(--fail)">${a.display}</span></div>`).join('')}</section>
     </div>`;
@@ -715,9 +715,9 @@ function pageHome(){
     </div>
   </div>`;
 }
-function taskRow(x){const p=pById(x.pid);const cls=whenCls(x.due);
+function taskRow(x,inPt){const p=pById(x.pid);const cls=whenCls(x.due);
   return `<div class="task"><span class="when ${cls}">${cls==='soon'?fds(x.due):rel(x.due)}</span><div class="what"><b>${esc(x.type)}</b><small>${esc(p.name)} · <span class="mono">${p.caseId}</span> · ${esc(x.detail)}</small></div>
-  <div style="display:flex;gap:6px">${x.kind==='call'?`<a class="btn sm ghost hide-sm" href="tel:${p.phone}" aria-label="โทร">${ic('phone')}</a>`:''}${x.kind==='follow'?`<button class="btn sm" data-action="recordFollow" data-pid="${p.id}" data-fi="${x.fi}">บันทึกผล</button>`:`<a class="btn sm" href="#/patient/${p.id}">เปิดเคส</a>`}</div></div>`}
+  <div style="display:flex;gap:6px">${x.kind==='call'?`<a class="btn sm ghost hide-sm" href="tel:${p.phone}" aria-label="โทร">${ic('phone')}</a>`:''}${x.kind==='follow'?`<button class="btn sm" data-action="recordFollow" data-pid="${p.id}" data-fi="${x.fi}">บันทึกผล</button>`:inPt?'':`<a class="btn sm" href="#/patient/${p.id}">เปิดเคส</a>`}</div></div>`}
 
 function pageWorklist(){
   const t=tasks();const f=state.wlFilter;
@@ -764,9 +764,9 @@ function pagePatient(id){
     body=`<div class="grid cols-main"><div class="stack">
       ${p.flags.length?`<div class="stack" style="--g:8px">${p.flags.map(f=>`<div class="flag ${f[0]==='warn'?'warn':''}">${ic('alert')}<span>${esc(f[1])}</span></div>`).join('')}</div>`:''}
       <section class="panel"><div class="panel-head"><h2>ข้อมูลการตั้งครรภ์</h2></div><div class="facts">
-        ${[['GA ครั้งแรกที่ฝากครรภ์',p.firstGA+' สัปดาห์'],['วันที่เริ่มดูแล',fd(p.start)],['กำหนดคลอด (EDC)',fd(p.edc)],['ฝากครรภ์แล้ว',p.anc.filter(a=>a.attended).length+' ครั้ง'],['Hct Lab I',p.checks.hct1+'%'],['สิทธิการรักษา',p.coverage],['การศึกษา',p.school],['ผู้ติดต่อ',p.phone]].map(([k,v])=>`<div class="fact"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('')}
+        ${[['GA ครั้งแรกที่ฝากครรภ์',p.firstGA+' สัปดาห์'],['วันที่เริ่มดูแล',fd(p.start)],['กำหนดคลอด (EDC)',fd(p.edc)],['ฝากครรภ์แล้ว',p.anc.filter(a=>a.attended).length+' ครั้ง'],['Hct Lab I',typeof p.checks.hct1==='number'?p.checks.hct1+'%':'ยังไม่มีผล'],['สิทธิการรักษา',p.coverage],['การศึกษา',p.school],['ผู้ติดต่อ',p.phone]].map(([k,v])=>`<div class="fact"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('')}
       </div></section></div>
-      <section class="panel"><div class="panel-head"><h2>ขั้นตอนถัดไป</h2></div>${(()=>{const ts=tasks().filter(x=>x.pid===p.id);if(ts.length)return ts.map(taskRow).join('');const nf=p.follow.find(f=>f.status!=='done');const nd=p.stage==='anc'?p.nextAnc:nf&&nf.due;return nd?'<div class="task"><span class="when soon">'+fds(nd)+'</span><div class="what"><b>'+(p.stage==='anc'?'นัดฝากครรภ์':'ติดตามหลังคลอด '+nf.round)+'</b><small>'+rel(nd)+' · ระบบจะขึ้นในงานค้างก่อนกำหนด 14 วัน</small></div></div>':'<div class="empty"><b>ไม่มีงานค้าง</b></div>'})()}</section></div>`;
+      <section class="panel"><div class="panel-head"><h2>ขั้นตอนถัดไป</h2></div>${(()=>{const ts=tasks().filter(x=>x.pid===p.id);if(ts.length)return ts.map(x=>taskRow(x,true)).join('');const nf=p.follow.find(f=>f.status!=='done');const nd=p.stage==='anc'?p.nextAnc:nf&&nf.due;return nd?'<div class="task"><span class="when soon">'+fds(nd)+'</span><div class="what"><b>'+(p.stage==='anc'?'นัดฝากครรภ์':'ติดตามหลังคลอด '+nf.round)+'</b><small>'+rel(nd)+' · ระบบจะขึ้นในงานค้างก่อนกำหนด 14 วัน</small></div></div>':'<div class="empty"><b>ไม่มีงานค้าง</b></div>'})()}</section></div>`;
   }
   if(tab==='anc'){
     body=`<div class="grid cols-main"><section class="panel"><div class="panel-head"><div><h2>การฝากครรภ์</h2><div class="sub">มาตามนัด ${p.anc.filter(a=>a.attended).length}/${p.anc.length} ครั้ง</div></div>${r.edit===true?`<button class="btn sm primary" data-action="addAnc" data-id="${p.id}">${ic('plus')}บันทึก ANC</button>`:''}</div>
@@ -805,7 +805,7 @@ function pagePatient(id){
   <section class="panel" style="margin-bottom:18px"><div class="pt-head"><span class="avatar">${initials(p.name)}</span><div style="min-width:0"><h1>${esc(p.name)}</h1>
    <div class="pt-meta"><span>HN <b class="mono">${p.hn}</b></span><span class="mono">${p.caseId}</span><span>อายุ ${p.age} ปี</span><span>${GROUPS[p.group]}</span><span>NCM ${p.ncm}</span></div>
    <div style="margin-top:8px">${stageLabel(p)}</div></div>
-   <div class="pt-actions"><a class="btn" href="tel:${p.phone}">${ic('phone')}${p.phone}</a>${r.edit===true&&p.stage==='anc'?`<button class="btn primary" data-action="recordDelivery" data-id="${p.id}">${ic('baby')}บันทึกการคลอด</button>`:''}</div></div>
+   <div class="pt-actions">${p.phone&&p.phone!=='—'?`<a class="btn" href="tel:${p.phone}">${ic('phone')}${p.phone}</a>`:''}${r.edit===true&&p.stage==='anc'?`<button class="btn primary" data-action="recordDelivery" data-id="${p.id}">${ic('baby')}บันทึกการคลอด</button>`:''}</div></div>
    <div class="path" aria-label="เส้นทางการดูแล">${path}</div></section>
   <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${tab===k}" data-action="ptTab" data-v="${k}">${l}</button>`).join('')}</div>${body}`;
 }
@@ -897,7 +897,7 @@ function pageUsers(){
   return head('ผู้ใช้และสิทธิ์','บัญชีรายบุคคล · ปิดบัญชีได้ทันทีเมื่อย้ายงานหรือลาออก',r.pii==='none'&&state.role==='admin'?`<button class="btn primary" data-action="inviteUser">${ic('plus')}เพิ่มผู้ใช้</button>`:'')+
   `<div class="stack"><section class="panel"><div class="table-wrap"><table><thead><tr><th>ผู้ใช้</th><th>บทบาท</th><th>2FA</th><th>เข้าใช้ล่าสุด</th><th>สถานะ</th><th></th></tr></thead><tbody>
   ${USERS.map((u,i)=>`<tr><td class="cell-name"><b>${u.name}</b><small>${u.email}</small></td><td>${ROLES[u.role].label}${u.team?` <span class="tag">${u.team}</span>`:''}</td><td>${u.mfa?'<span class="badge pass">เปิด</span>':'<span class="badge warn">ยังไม่เปิด</span>'}</td><td class="num">${diffD(TODAY,u.last)===0?'วันนี้':fd(u.last)}</td><td>${u.status==='active'?'<span class="badge pass">ใช้งาน</span>':'<span class="badge none">ปิดใช้งาน</span>'}</td>
-  <td class="r">${state.role==='admin'?`<button class="btn sm" data-action="toggleUser" data-i="${i}">${u.status==='active'?'ปิดบัญชี':'เปิดบัญชี'}</button>`:''}</td></tr>`).join('')}</tbody></table></div></section>
+  <td class="r">${state.role==='admin'&&u.name!==R().user?`<button class="btn sm" data-action="toggleUser" data-i="${i}">${u.status==='active'?'ปิดบัญชี':'เปิดบัญชี'}</button>`:''}</td></tr>`).join('')}</tbody></table></div></section>
   <section class="panel"><div class="panel-head"><h2>สิทธิ์ตามบทบาท</h2><span class="sub">บังคับใช้ในฐานข้อมูลด้วย Row Level Security</span></div><div class="table-wrap"><table><thead><tr><th>สิทธิ์</th>${roleCols.map(c=>`<th>${ROLES[c].label}</th>`).join('')}</tr></thead><tbody>${perm.map(([l,v])=>`<tr><td><b style="font-weight:500">${l}</b></td>${v.map(x=>`<td class="${x==='—'?'muted':''}">${x}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section></div>`;
 }
 
@@ -970,7 +970,7 @@ function route(){
   if(!state.role){$('#app').innerHTML=pageLogin();return}
   const h=location.hash.replace(/^#\//,'')||'home';const [page,arg]=h.split('/');
   let content;
-  if(page==='patient'){content=can('patients')?pagePatient(arg):noAccess('เปิดดูข้อมูลรายบุคคล')}
+  if(page==='patient'){content=can('patients')?pagePatient(arg):head('ข้อมูลคนไข้','')+noAccess('เปิดดูข้อมูลรายบุคคล')}
   else if(!PAGES[page]){content=head('ไม่พบหน้านี้','')}
   else if(!can(page)){content=head(PAGES[page][0],'')+noAccess('เข้าถึงหน้านี้')}
   else content=({home:pageHome,worklist:pageWorklist,patients:pagePatients,referrals:pageReferrals,kpi:pageKpi,reports:pageReports,settings:pageSettings,users:pageUsers,audit:pageAudit})[page]();
